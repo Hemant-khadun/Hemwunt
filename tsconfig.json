@@ -1,0 +1,38 @@
+{
+    "compilerOptions": {
+        "target": "ES2020",
+        "useDefineForClassFields": true,
+        "allowSyntheticDefaultImports": true,
+        "lib": ["ES2020", "DOM", "DOM.Iterable"],
+        "module": "ESNext",
+        "skipLibCheck": true,
+        "moduleResolution": "Node",
+        "allowImportingTsExtensions": true,
+        "resolveJsonModule": true,
+        "esModuleInterop": true,
+        "isolatedModules": true,
+        "noEmit": true,
+        "jsx": "react-jsx",
+        "baseUrl": ".",
+        "paths": {
+            "@/*": ["src/*"]
+        },
+        "types": ["node", "vite/client"],
+        "strict": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "noFallthroughCasesInSwitch": true
+    },
+
+    // `src` is the site; `lib` is the fluid-distortion effect the header menu
+    // still imports. Everything else that the old recursive glob used to match
+    // — vite.config.ts most of all — is deliberately out: that file belongs to
+    // tsconfig.node.json, and having both projects claim it produced a TS6305
+    // on every type-check.
+    //
+    // `composite`, `declaration` and `declarationMap` are gone along with the
+    // library build. A website emits no type declarations.
+    "include": ["src", "lib", "glsl.d.ts"],
+    "exclude": ["dist", "node_modules"],
+    "references": [{ "path": "./tsconfig.node.json" }]
+}

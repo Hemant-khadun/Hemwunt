@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Served from public/, so these resolve identically in dev and in the
+         build. The previous /vite.svg did not exist in this repo at all, and
+         Layout.tsx was injecting a second <link> pointing at /src/assets/,
+         which is a dev-server-only path that 404s once built. -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <!-- viewport-fit=cover: in landscape on a notched phone the sea runs edge
+         to edge instead of sitting between two black bars; the text keeps
+         clear of the notch through env(safe-area-inset-*) in styles.css. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#01131f" />
+    <meta name="color-scheme" content="dark" />
+    <meta
+      name="description"
+      content="Hemwunt Khadun — fullstack developer. Portfolio of web experiences, built in Mauritius."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Hemwunt Khadun — Fullstack developer" />
+    <meta
+      property="og:description"
+      content="A portfolio told as a dive: interfaces, APIs and everything below the surface."
+    />
+    <meta name="twitter:card" content="summary" />
+    <!-- The page's own typeface, asked for at once: the loader's figures are
+         set in it, and the page's first words need it anyway. Left to the
+         stylesheet, it is only found once the app has rendered text. Same
+         file as the @font-face in styles.css, so it is fetched once. -->
+    <link
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      href="/src/assets/fonts/montserrat-var-core.woff2"
+      crossorigin
+    />
+    <!-- The italic serif the story sets its accent words in. Loaded without
+         blocking the first paint: the stylesheet arrives as a print sheet and
+         switches itself on, and `display=swap` shows the fallback serif until
+         the font is in. As a normal stylesheet it held the whole page blank
+         for a round trip to Google on every cold load. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" />
+      <style>
+        #loader {
+          display: none;
+        }
+      </style>
+    </noscript>
+    <title>Hemwunt Khadun - Portfolio</title>
+    <!-- THE LOADER. Specks of marine snow drift round a sounding ring and are
+         drawn in as the first screen comes in; once it has, they fall into
+         one point, it flares, and the water opens from that point like a
+         porthole onto the page.
+
+         Inline, so it is on screen at the first paint, before any of the
+         page's script has arrived: no image, no library. What it animates by
+         itself is transform and opacity, which the compositor keeps running
+         while the main thread is busy compiling the scene. Pitch black, with
+         the page's own lights in it: the marine snow's white (MarineSnow.tsx)
+         and the UI periwinkle for the glow. The script at the end of <body>
+         drives it; what it waits for is registered by the app
+         (src/utils/loader.ts). -->
+    <style>
+      @font-face {
+        font-family: 'Loader Figures';
+        src: url('/src/assets/fonts/montserrat-var-core.woff2') format('woff2');
+        font-weight: 100 900;
+        font-display: swap;
+        unicode-range: U+0025, U+0030-0039;
+      }
+
+      html.is-loading {
+        overflow: hidden;
+      }
+
+      #loader {
+        /* Written by the script each frame: how far the specks still are from
+           the centre (1 scattered, 0 gathered), how far they have turned, and
+           the iris's radius as it opens. */
+        --k: 1;
+        --p: 0;
+        --hole: 0px;
+        /* Pitch black: the dark before the surface, lifted only behind the
+           ring by a breath of deep blue that is gone well before the edges. */
+        --ld-sea: radial-gradient(ellipse at 50% 46%, #0a1222 0%, #03060c 36%, #000 68%);
+        position: fixed;
+        inset: 0;
+        z-index: 10000;
+        overflow: hidden;
+        background: var(--ld-sea);
+        color: #fff;
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+        contain: strict;
+        /* If the script never runs, the page is not held behind this. */
+        animation: ld-failsafe 0.6s 25s forwards;
+      }
+
+      /* The reveal: a porthole opening from the gathered point of light, its
+         rim catching the light as it goes. */
+      #loader.is-opening {
+        pointer-events: none;
+        background: radial-gradient(
+            circle at 50% 50%,
+            transparent calc(var(--hole) + 6px),
+            rgba(214, 238, 247, 0.34) calc(var(--hole) + 26px),
+            transparent calc(var(--hole) + 150px)
+          ),
+          var(--ld-sea);
+        -webkit-mask: radial-gradient(circle at 50% 50%, transparent var(--hole), #000 calc(var(--hole) + 26px));
+        mask: radial-gradient(circle at 50% 50%, transparent var(--hole), #000 calc(var(--hole) + 26px));
+      }
+
+      /* The specks: marine snow, spiralling in as the page comes together.
+         Placed by the script, each on its own angle and radius. */
+      .ld-swirl {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        animation: ld-spin 90s linear infinite;
+      }
+
+      .ld-swirl i {
+        position: absolute;
+        transform: rotate(calc(var(--a) + var(--p) * var(--s))) translateX(calc(var(--r) * var(--k)));
+        opacity: calc(1 - 0.55 * var(--k));
+      }
+
+      .ld-swirl i::after {
+        content: '';
+        position: absolute;
+        width: var(--z);
+        height: var(--z);
+        margin: calc(var(--z) / -2) 0 0 calc(var(--z) / -2);
+        border-radius: 50%;
+        background: rgb(214, 238, 247);
+        box-shadow: 0 0 7px 1px rgba(214, 238, 247, 0.55);
+        animation: ld-twinkle var(--t) ease-in-out var(--d) infinite alternate;
+      }
+
+      /* The centre: a sounding ring, its progress, and the point it pings
+         from. */
+      .ld-core {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 60px;
+        height: 60px;
+        margin: -30px 0 0 -30px;
+        animation: ld-rise 1s cubic-bezier(0.2, 0.7, 0.2, 1);
+        transition: transform 0.9s cubic-bezier(0.2, 0.7, 0.2, 1), opacity 0.6s ease;
+      }
+
+      .ld-core svg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+        transform: rotate(-90deg);
+      }
+
+      .ld-track,
+      .ld-arc {
+        fill: none;
+        stroke-width: 1;
+      }
+
+      .ld-track {
+        stroke: rgba(255, 255, 255, 0.18);
+      }
+
+      .ld-arc {
+        stroke: #fff;
+        stroke-width: 1.5;
+        stroke-dasharray: 163.4;
+        stroke-dashoffset: 163.4;
+      }
+
+      /* Drawn large and scaled down, so the ring is crisp where it is seen
+         best: on its way out. */
+      .ld-ping {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 400px;
+        height: 400px;
+        margin: -200px 0 0 -200px;
+        border-radius: 50%;
+        border: 1.5px solid rgba(214, 238, 247, 0.6);
+        opacity: 0;
+        transform: scale(0.14);
+        animation: ld-ping 3.2s cubic-bezier(0.1, 0.55, 0.3, 1) infinite;
+      }
+
+      .ld-ping + .ld-ping {
+        animation-delay: 1.6s;
+      }
+
+      .ld-dot {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 5px;
+        height: 5px;
+        margin: -2.5px 0 0 -2.5px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 0 10px 2px rgba(80, 137, 255, 0.85), 0 0 3px 1px rgba(255, 255, 255, 0.9);
+        animation: ld-breathe 1.6s ease-in-out infinite;
+        transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+
+      .ld-text {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: calc(50% + 58px);
+        text-align: center;
+        transition: opacity 0.4s ease, transform 0.6s ease;
+      }
+
+      /* The share of the first screen that is in. */
+      .ld-count {
+        margin: 0;
+        padding-left: 0.3em;
+        font: 300 clamp(1.5rem, 4.4vw, 1.9rem) / 1 'Loader Figures', Montserrat, system-ui, -apple-system,
+          'Segoe UI', sans-serif;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.02em;
+        color: rgba(255, 255, 255, 0.94);
+        opacity: 0;
+        transform: translateY(6px);
+        transition: opacity 0.9s ease, transform 1.1s cubic-bezier(0.2, 0.7, 0.2, 1);
+      }
+
+      .ld-count small {
+        margin-left: 0.12em;
+        font-size: 0.5em;
+        font-weight: 400;
+        color: rgba(255, 255, 255, 0.55);
+      }
+
+      .is-set .ld-count {
+        opacity: 1;
+        transform: none;
+      }
+
+      /* What is being brought together, top to bottom; each word lights up
+         when its part is in. Shown once the app says it is waiting on them,
+         so never on a browser that cannot run the scene. */
+      .ld-parts {
+        margin: 0.95rem 0 0;
+        padding-left: 0.42em;
+        font: 500 0.625rem/1 Montserrat, system-ui, -apple-system, 'Segoe UI', sans-serif;
+        letter-spacing: 0.42em;
+        text-transform: uppercase;
+        opacity: 0;
+        transition: opacity 0.8s ease;
+      }
+
+      .has-parts .ld-parts {
+        opacity: 1;
+      }
+
+      .ld-parts span {
+        color: rgba(255, 255, 255, 0.34);
+        transition: color 0.7s ease, text-shadow 0.7s ease;
+      }
+
+      .ld-parts span + span::before {
+        content: '\00B7';
+        margin: 0 0.5em 0 0.08em;
+        color: rgba(255, 255, 255, 0.34);
+        text-shadow: none;
+      }
+
+      .ld-parts .is-lit {
+        color: #fff;
+        text-shadow: 0 0 12px rgba(80, 137, 255, 0.9);
+      }
+
+      .is-gathered .ld-dot {
+        animation: none;
+        transform: scale(3.4);
+      }
+
+      .is-opening .ld-core {
+        transform: scale(1.7);
+        opacity: 0;
+      }
+
+      .is-opening .ld-text {
+        opacity: 0;
+        transform: translateY(-8px);
+      }
+
+      @keyframes ld-spin {
+        to {
+          transform: rotate(1turn);
+        }
+      }
+
+      @keyframes ld-twinkle {
+        from {
+          opacity: 0.25;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+
+      @keyframes ld-ping {
+        0% {
+          opacity: 0;
+          transform: scale(0.14);
+        }
+        6% {
+          opacity: 0.9;
+        }
+        100% {
+          opacity: 0;
+          transform: scale(1);
+        }
+      }
+
+      @keyframes ld-breathe {
+        0%,
+        100% {
+          transform: scale(1.35);
+        }
+        45% {
+          transform: scale(0.9);
+        }
+      }
+
+      @keyframes ld-rise {
+        from {
+          opacity: 0;
+          transform: scale(0.6);
+        }
+      }
+
+      @keyframes ld-failsafe {
+        to {
+          opacity: 0;
+          visibility: hidden;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .ld-swirl,
+        .ld-swirl i::after,
+        .ld-dot,
+        .ld-core {
+          animation: none;
+        }
+
+        .ld-ping {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="loader" role="progressbar" aria-label="Loading" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="ld-swirl" aria-hidden="true"></div>
+      <div class="ld-core" aria-hidden="true">
+        <span class="ld-ping"></span><span class="ld-ping"></span>
+        <svg viewBox="0 0 60 60">
+          <circle class="ld-track" cx="30" cy="30" r="26" />
+          <circle class="ld-arc" cx="30" cy="30" r="26" />
+        </svg>
+        <span class="ld-dot"></span>
+      </div>
+      <div class="ld-text" aria-hidden="true">
+        <p class="ld-count"><span>0</span><small>%</small></p>
+        <p class="ld-parts">
+          <span data-part="sky">Sky</span><span data-part="sea">Sea</span><span data-part="light">Light</span><span data-part="whale">Whale</span>
+        </p>
+      </div>
+    </div>
+    <div id="root"></div>
+    <script>
+      // Drives the loader. Plain ES5 and no dependencies: it runs before
+      // anything else on the page, on whatever browser turns up.
+      //
+      // The app registers what the first screen is waiting for through
+      // window.__loader (src/utils/loader.ts), each piece weighted by its
+      // share of the wait, then seals the list. The ring and the figure run
+      // on a paced curve (see HALF_MS), pushed ahead by the share that has
+      // landed when that is faster, and hold at 99 until all of it is in.
+      // Then the specks are drawn into the centre, the point flares, and the
+      // page opens.
+      (function () {
+        var doc = document.documentElement;
+        var el = document.getElementById('loader');
+        var app = document.getElementById('root');
+        if (!el) return;
+
+        /** Shortest time on screen, so a warm cache still gets its moment. */
+        var MIN_MS = 700;
+        // The count is a perception, not a report: a quick glide to 50, a
+        // slower one on to 99, and a wait there if the page is still coming.
+        // The real share only ever speeds it up; nothing but readiness makes
+        // 100.
+        var HALF_MS = 900;
+        var ON_MS = 4200;
+        /** Opens anyway after this, whatever is missing: the page works
+         *  without the scene, which fades in when it lands, as it always has. */
+        var MAX_MS = 20000;
+        var GATHER_MS = 780;
+        var HOLD_MS = 200;
+        var OPEN_MS = 1250;
+        var FADE_MS = 500;
+        /** The ring's circumference (r = 26). */
+        var RING = 163.4;
+
+        var reduced = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        var arc = el.querySelector('.ld-arc');
+        var figure = el.querySelector('.ld-count span');
+        var now = function () {
+          return window.performance && performance.now ? performance.now() : Date.now();
+        };
+        var start = now();
+
+        // --- Holding the page still -------------------------------------
+        // Scroll input is stopped before the page's own handlers see it
+        // (the smooth scroll, the story's beats), so the dive cannot run on
+        // behind the loader; `inert` keeps focus out of it too.
+        var KEYS = { ' ': 1, ArrowUp: 1, ArrowDown: 1, PageUp: 1, PageDown: 1, Home: 1, End: 1 };
+        var HELD = ['wheel', 'touchmove', 'keydown'];
+        var opts = { capture: true, passive: false };
+        var hold = function (e) {
+          if (e.ctrlKey || (e.type === 'keydown' && !KEYS[e.key])) return;
+          if (e.cancelable) e.preventDefault();
+          e.stopImmediatePropagation();
+        };
+        for (var h = 0; h < HELD.length; h++) window.addEventListener(HELD[h], hold, opts);
+        doc.classList.add('is-loading');
+        if (app) app.setAttribute('inert', '');
+
+        var letGo = function () {
+          for (var i = 0; i < HELD.length; i++) window.removeEventListener(HELD[i], hold, opts);
+          doc.classList.remove('is-loading');
+          if (app) app.removeAttribute('inert');
+          el.setAttribute('aria-hidden', 'true');
+          // For whatever should start as the page is uncovered rather than
+          // at mount (see pageShown in src/utils/loader.ts).
+          window.__loader.opened = true;
+          try {
+            window.dispatchEvent(new Event('loader:open'));
+          } catch (e) {}
+        };
+
+        // --- The specks -------------------------------------------------
+        if (!reduced) {
+          var swirl = el.querySelector('.ld-swirl');
+          for (var s = 0; s < 22; s++) {
+            var r = 15 + Math.pow(Math.random(), 0.8) * 42;
+            var speck = document.createElement('i');
+            speck.style.cssText =
+              '--a:' + (Math.random() * 360).toFixed(1) + 'deg;' +
+              '--r:' + r.toFixed(1) + 'vmin;' +
+              // Inner specks turn further as they fall in: a vortex.
+              '--s:' + (0.12 + (0.28 * (57 - r)) / 42 + Math.random() * 0.08).toFixed(3) + 'turn;' +
+              '--z:' + (1.6 + Math.random() * 1.8).toFixed(2) + 'px;' +
+              '--t:' + (1.4 + Math.random() * 2).toFixed(2) + 's;' +
+              '--d:-' + (Math.random() * 3).toFixed(2) + 's';
+            swirl.appendChild(speck);
+          }
+        }
+
+        // --- The figure, once its face is in ----------------------------
+        // Shown in the page's typeface, not swapped from a fallback in front
+        // of the visitor: it waits a moment for the font (preloaded above).
+        var set = function () {
+          el.classList.add('is-set');
+        };
+        setTimeout(set, 700);
+        if (document.fonts && document.fonts.load) document.fonts.load('300 1em "Loader Figures"', '0').then(set, set);
+        else set();
+
+        // --- What the first screen is waiting for -----------------------
+        var total = 0;
+        var landed = 0;
+        var pending = 0;
+        var sealed = false;
+        var readyAt = 0;
+        /** Pieces still out, per word ("sky", "sea", ...). */
+        var parts = {};
+        var noop = function () {};
+
+        var check = function () {
+          if (sealed && pending === 0 && !readyAt) readyAt = now();
+        };
+
+        var task = function (tag, weight) {
+          if (readyAt) return noop;
+          var finished = false;
+          total += weight;
+          pending++;
+          if (tag) {
+            parts[tag] = (parts[tag] || 0) + 1;
+            el.classList.add('has-parts');
+          }
+          return function () {
+            if (finished) return;
+            finished = true;
+            landed += weight;
+            pending--;
+            if (tag && !--parts[tag]) {
+              var word = el.querySelector('[data-part="' + tag + '"]');
+              if (word) word.className = 'is-lit';
+            }
+            check();
+          };
+        };
+
+        var release = function () {
+          if (!readyAt) readyAt = now();
+        };
+
+        window.__loader = {
+          task: task,
+          seal: function () {
+            sealed = true;
+            check();
+          },
+          release: release,
+          // The page's own script is the first thing it waits for; the app
+          // calls this as it starts.
+          booted: task('', 1.2),
+        };
+        setTimeout(release, MAX_MS);
+
+        // --- The frame loop ---------------------------------------------
+        var shown = 0;
+        var k = 1;
+        var turn = 0;
+        var phase = 0; // 0 loading, 1 gathering, 2 opening
+        var since = 0;
+        var fromK = 1;
+        var fromTurn = 0;
+        var gathered = 0;
+        var reach = 0;
+        var last = start;
+        var written = {};
+
+        // Only what changed: once the ring has caught up, a frame writes
+        // nothing and the page's own work has the main thread to itself.
+        var write = function (name, value) {
+          if (written[name] === value) return;
+          written[name] = value;
+          if (name === 'ring') arc.style.strokeDashoffset = value;
+          else if (name === 'pct') {
+            figure.textContent = value;
+            el.setAttribute('aria-valuenow', value);
+          } else el.style.setProperty(name, value);
+        };
+
+        var frame = function (t) {
+          var dt = Math.min(64, Math.max(0, t - last));
+          last = t;
+
+          if (phase === 0) {
+            var real = total ? landed / total : 0;
+            var age = t - start;
+            var a = Math.min(1, age / HALF_MS);
+            var b = Math.min(1, Math.max(0, age - HALF_MS) / ON_MS);
+            var paced = age < HALF_MS ? 0.5 * (1 - Math.pow(1 - a, 3)) : 0.5 + 0.49 * (1 - (1 - b) * (1 - b));
+            var goal = readyAt ? 1 : Math.min(0.99, Math.max(paced, real));
+            // Chased rather than set, so a frame the scene's compile holds
+            // up is caught up in a glide, not a jump.
+            if (goal > shown) shown += (goal - shown) * (1 - Math.exp(-dt / (readyAt ? 110 : 90)));
+            if (!reduced) {
+              k = 1 - 0.68 * shown;
+              turn = shown;
+            }
+            if (readyAt && t - start >= MIN_MS) {
+              phase = 1;
+              since = reduced ? t - GATHER_MS : t;
+              fromK = k;
+              fromTurn = turn;
+            }
+          }
+
+          if (phase === 1) {
+            // Drawn in slowly, then faster and faster, onto the point.
+            var u = Math.min(1, (t - since) / GATHER_MS);
+            var drawn = u * u * u;
+            shown += (1 - shown) * (1 - Math.exp(-dt / 90));
+            if (!reduced) {
+              k = fromK * (1 - drawn);
+              turn = fromTurn + 0.4 * drawn;
+            }
+            if (u >= 1 && !gathered) {
+              gathered = t;
+              shown = 1;
+              el.classList.add('is-gathered');
+              // Anything nothing was waiting on is in too. A part still out
+              // (the loader gave up on it) stays dark.
+              var words = el.querySelectorAll('[data-part]');
+              for (var w = 0; w < words.length; w++) {
+                if (!parts[words[w].getAttribute('data-part')]) words[w].className = 'is-lit';
+              }
+            }
+            if (gathered && t - gathered >= (reduced ? 0 : HOLD_MS)) {
+              phase = 2;
+              since = t;
+              reach = Math.sqrt(window.innerWidth * window.innerWidth + window.innerHeight * window.innerHeight) / 2 + 160;
+              el.classList.add(reduced ? 'is-fading' : 'is-opening');
+              letGo();
+            }
+          }
+
+          if (phase === 2) {
+            var v = Math.min(1, (t - since) / (reduced ? FADE_MS : OPEN_MS));
+            if (reduced) {
+              el.style.opacity = String(1 - v);
+            } else {
+              var eased = v < 0.5 ? 4 * v * v * v : 1 - Math.pow(-2 * v + 2, 3) / 2;
+              write('--hole', (eased * reach).toFixed(1) + 'px');
+            }
+            if (v >= 1) {
+              if (el.parentNode) el.parentNode.removeChild(el);
+              return;
+            }
+          }
+
+          write('--k', k.toFixed(4));
+          write('--p', turn.toFixed(4));
+          write('ring', (RING * (1 - shown)).toFixed(2));
+          write('pct', String(shown >= 1 ? 100 : Math.min(99, Math.round(shown * 100))));
+          requestAnimationFrame(frame);
+        };
+        requestAnimationFrame(frame);
+      })();
+    </script>
+    <noscript>
+      <p style="padding: 2rem; font-family: sans-serif; color: #f3f9fc">
+        This portfolio is an interactive dive and needs JavaScript. Find Hemwunt on
+        <a style="color: #00c3ff" href="https://github.com/hemant-khadun">GitHub</a> and
+        <a style="color: #00c3ff" href="https://mu.linkedin.com/in/hemwunt-khadun">LinkedIn</a>.
+      </p>
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

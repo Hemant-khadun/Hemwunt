@@ -1,0 +1,122 @@
+<!doctype html>
+<!--
+    Before/after of the swim clip, outside the site: the Sketchfab original on
+    top, the generated clip below, same camera, same clock. Dev server only:
+    http://localhost:5175/scripts/whale-clip/compare.html
+    Keys: 1-4 view (side, three-quarter, top, front), space pause,
+    arrows step 0.1 s, [ ] playback rate. ?t=<s> opens paused at that time.
+-->
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Whale clip compare</title>
+    <style>
+        html, body { margin: 0; height: 100%; background: #0b4a78; overflow: hidden; }
+        #hud { position: fixed; left: 12px; top: 10px; font: 12px/1.5 system-ui, sans-serif; color: #d6ecff; white-space: pre; pointer-events: none; }
+        .tag { position: fixed; right: 12px; font: 600 12px system-ui, sans-serif; color: #d6ecff; opacity: 0.8; }
+    </style>
+</head>
+<body>
+    <div id="hud"></div>
+    <div class="tag" style="top: 10px">original (Sketchfab)</div>
+    <div class="tag" style="top: calc(50% + 10px)">generated (swim_clip.py)</div>
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
+        const FILES = ['/media-src/humpback_whale.original.glb', '/src/assets/models/humpback_whale.glb'];
+        const VIEWS = { 1: 'side', 2: 'three-quarter', 3: 'top', 4: 'front' };
+        const params = new URLSearchParams(location.search);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+        renderer.setSize(innerWidth, innerHeight);
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.setScissorTest(true);
+        document.body.appendChild(renderer.domElement);
+
+        const loader = new GLTFLoader();
+        const rows = await Promise.all(FILES.map(async (url) => {
+            const gltf = await loader.loadAsync(url);
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0b4a78);
+            scene.add(new THREE.HemisphereLight(0xbfe6ff, 0x08243a, 1.4));
+            const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+            sun.position.set(3, 10, 4);
+            scene.add(sun);
+
+            const mixer = new THREE.AnimationMixer(gltf.scene);
+            const clip = gltf.animations[0];
+            mixer.clipAction(clip).play();
+            mixer.setTime(0);
+            gltf.scene.updateMatrixWorld(true);
+
+            // Normalise to a 10-unit whale centred on the origin.
+            let mesh;
+            gltf.scene.traverse((o) => { if (o.isSkinnedMesh) mesh = o; });
+            mesh.frustumCulled = false;
+            mesh.computeBoundingBox();
+            const box = mesh.boundingBox.clone().applyMatrix4(mesh.matrixWorld);
+            const size = box.getSize(new THREE.Vector3());
+            const holder = new THREE.Group();
+            holder.scale.setScalar(10 / Math.max(size.x, size.y, size.z));
+            gltf.scene.position.copy(box.getCenter(new THREE.Vector3())).negate();
+            holder.add(gltf.scene);
+            scene.add(holder);
+
+            const longX = size.x >= size.z;
+            return { scene, mixer, clip, longX, camera: new THREE.PerspectiveCamera(22, 1, 0.1, 200) };
+        }));
+
+        let view = 1;
+        let time = Number(params.get('t') ?? 0);
+        let playing = !params.has('t');
+        let rate = 1;
+
+        function aim(row) {
+            const d = 15;
+            const [a, b] = row.longX ? ['x', 'z'] : ['z', 'x'];
+            const p = new THREE.Vector3();
+            if (view === 1) { p[b] = d; p.y = 0.6; }
+            if (view === 2) { p[b] = d * 0.73; p[a] = d * 0.62; p.y = d * 0.28; }
+            if (view === 3) { p.y = d; p[b] = 0.001; }
+            if (view === 4) { p[a] = d; p.y = 0.5; }
+            row.camera.position.copy(p);
+            row.camera.lookAt(0, 0, 0);
+        }
+
+        addEventListener('keydown', (e) => {
+            if (VIEWS[e.key]) view = Number(e.key);
+            if (e.key === ' ') playing = !playing;
+            if (e.key === 'ArrowRight') time += 0.1;
+            if (e.key === 'ArrowLeft') time = Math.max(0, time - 0.1);
+            if (e.key === ']') rate = Math.min(4, rate * 1.25);
+            if (e.key === '[') rate = Math.max(0.1, rate / 1.25);
+        });
+        addEventListener('resize', () => renderer.setSize(innerWidth, innerHeight));
+
+        let last = performance.now();
+        renderer.setAnimationLoop((now) => {
+            if (playing) time += ((now - last) / 1000) * rate;
+            last = now;
+            const w = innerWidth, h = innerHeight / rows.length;
+            rows.forEach((row, i) => {
+                row.mixer.setTime(time % row.clip.duration);
+                aim(row);
+                row.camera.aspect = w / h;
+                row.camera.updateProjectionMatrix();
+                const y = innerHeight - (i + 1) * h;
+                renderer.setViewport(0, y, w, h);
+                renderer.setScissor(0, y, w, h);
+                renderer.render(row.scene, row.camera);
+            });
+            document.getElementById('hud').textContent =
+                `t ${time.toFixed(2)} s   rate ${rate.toFixed(2)}x   ${VIEWS[view]}${playing ? '' : '   paused'}\n` +
+                '1-4 view · space pause · ← → step · [ ] rate';
+        });
+        window.compareReady = true;
+    </script>
+</body>
+</html>

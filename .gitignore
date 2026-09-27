@@ -1,0 +1,16 @@
+node_modules/
+dist/
+
+# The retired hero video: its source file, and the encodes that used to ship
+# from public/hero/ before the live ocean replaced them (kept, not deployed).
+media-src/*.mp4
+media-src/retired-hero-video/
+
+# Build output of the headless simulations in scripts/sim/.
+scripts/sim/*.cjs
+
+*.tsbuildinfo
+
+# Local-only: Claude Code permission grants and Python bytecode.
+.claude/settings.local.json
+__pycache__/
