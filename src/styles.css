@@ -690,6 +690,42 @@ html {
         margin-right: auto;
     }
 }
+
+/* A phone on its side: wide, but not 400 px tall. Every rule above sizes the
+   title by the width, so it grew into the cue at the bottom of the frame. Back
+   to the lower right, as on a desktop, sized by the height, with the cue kept
+   below it; clear of a notch on the right. */
+@media (orientation: landscape) and (max-height: 500px) {
+    .story-hero {
+        left: auto;
+        right: max(6vw, calc(env(safe-area-inset-right, 0px) + 1rem));
+        bottom: 22vh;
+        text-align: right;
+    }
+
+    .story-hero__kicker {
+        margin: 0 0 0.9rem auto;
+        font-size: 0.6rem;
+    }
+
+    .story-hero__sans {
+        font-size: clamp(1.3rem, 8vh, 2.2rem);
+    }
+
+    .story-hero__serif {
+        font-size: clamp(2.8rem, 19vh, 5.4rem);
+    }
+
+    .story-cue {
+        bottom: 3vh;
+        gap: 0.45rem;
+        font-size: 0.58rem;
+    }
+
+    .story-cue i {
+        height: 7vh;
+    }
+}
 /* Story End */
 
 /* Whale layer Start */
@@ -1043,6 +1079,34 @@ html {
     color: rgba(226, 240, 250, 0.8);
     opacity: 0;
     will-change: opacity, transform;
+}
+
+/* A phone on its side: the whole statement on one screen, set by the height. */
+@media (orientation: landscape) and (max-height: 500px) {
+    .statement-container {
+        padding: 10vh max(7vw, calc(env(safe-area-inset-right, 0px) + 1rem)) 7vh
+            max(7vw, calc(env(safe-area-inset-left, 0px) + 1rem));
+    }
+
+    .statement-subtitle {
+        margin-bottom: 0.8rem;
+    }
+
+    /* Past the phone rule at the end of the file, which sizes it by width. */
+    .statement-container .statement-text {
+        font-size: clamp(1.2rem, 5.9vh, 1.9rem);
+    }
+
+    .statement-highlight {
+        margin-top: 0.7rem;
+    }
+
+    .statement-footer {
+        margin-top: 0.9rem;
+        max-width: 92ch;
+        font-size: 0.78rem;
+        line-height: 1.5;
+    }
 }
 
 /* ==================== */
@@ -1884,6 +1948,91 @@ html {
     }
 }
 
+/* A phone on its side. Stacked, the words took the top of a 400 px screen and
+   the site came in below them, cut off at the bottom edge; a big phone wider
+   than 860 px got the desktop column with the paragraph and tags, taller than
+   the screen. Side by side again, as on a desktop, with the frame sized by the
+   height, and the phone's cut of the words. */
+@media (orientation: landscape) and (max-height: 500px) {
+    .project__stage,
+    .project--frame-right .project__stage {
+        display: grid;
+        grid-template-columns: auto minmax(14rem, 34vw);
+        align-items: center;
+        justify-content: center;
+        gap: 0 5vw;
+        padding: 12vh max(5vw, calc(env(safe-area-inset-right, 0px) + 1rem)) 8vh
+            max(5vw, calc(env(safe-area-inset-left, 0px) + 1rem));
+    }
+
+    .project--frame-right .project__stage {
+        grid-template-columns: minmax(14rem, 34vw) auto;
+    }
+
+    .project__visual,
+    .project--frame-right .project__visual {
+        order: 0;
+        align-self: center;
+        width: min(46vw, calc((76vh - 2rem) * var(--ratio)));
+    }
+
+    .project--frame-right .project__visual {
+        order: 2;
+    }
+
+    .project__text {
+        max-width: none;
+    }
+
+    .project__plate {
+        gap: 0.6rem;
+        font-size: 0.6rem;
+        letter-spacing: 0.2em;
+    }
+
+    .project__depth::before {
+        width: 1.2rem;
+        margin-right: 0.6rem;
+    }
+
+    .project__category {
+        margin-top: 0.8rem;
+        font-size: 0.62rem;
+        letter-spacing: 0.2em;
+    }
+
+    .project__name {
+        margin: 0.2rem 0 0.5rem;
+        font-size: clamp(2rem, 11vh, 3.2rem);
+    }
+
+    .project__hook {
+        font-size: clamp(0.95rem, 4.2vh, 1.15rem);
+    }
+
+    .project__body,
+    .project__tags {
+        display: none;
+    }
+
+    .project__links {
+        margin-top: 0.9rem;
+    }
+
+    .plink {
+        padding: 0.7em 1.15em;
+        font-size: 0.72rem;
+    }
+
+    .pframe {
+        --pframe-bar: 2rem;
+    }
+
+    .pframe__address {
+        font-size: 0.6rem;
+    }
+}
+
 /* ==================== */
 /*       FOOTER         */
 /* ==================== */
@@ -1906,7 +2055,12 @@ html {
     );
     z-index: 2;
     position: relative;
-    height: 100vh;
+    /* At least a screen, never capped at one: stacked on a phone (or on a
+       short laptop screen) the heading, form and sphere run taller than the
+       viewport, and a fixed height with the content pinned to the bottom
+       pushed the heading and form out through the top, where the clip
+       below cut them off. */
+    min-height: 100vh;
     justify-content: end;
     /* The contact beam overhangs the footer on every side; clip it so it
        never adds scroll. `clip`, not `hidden`: no scroll container. */
@@ -1944,6 +2098,10 @@ html {
         gap: 2rem;
     }
     .footer-scene-container {
+        /* Not the row's flex: 1. Stacked, that makes its height a share of
+           a column sized by its content, which collapsed the sphere to the
+           canvas's default 150px instead of this height. */
+        flex: none;
         width: 100%;
         min-width: auto;
         height: 400px;
@@ -2642,5 +2800,48 @@ html {
     
     .footer-social {
         flex-wrap: wrap;
+    }
+}
+
+/* A phone on its side. Stacked for a narrow screen, the footer ran to three
+   of these short ones, the middle one nothing but the sphere in open water.
+   Side by side again, as on a desktop, sized by the height. Last in the file,
+   past both stacking rules. */
+@media (orientation: landscape) and (max-height: 500px) {
+    .footer-container {
+        padding-top: 18vh;
+    }
+
+    .footer-layout {
+        flex-direction: row;
+        align-items: center;
+        gap: 4vw;
+    }
+
+    .footer-content {
+        gap: 1.2rem;
+    }
+
+    .footer-scene-container {
+        flex: 1;
+        width: auto;
+        min-width: 180px;
+        height: 70vh;
+    }
+
+    .footer-header h2 {
+        font-size: clamp(2rem, 11vh, 3rem);
+    }
+
+    .footer-header p {
+        font-size: 0.9rem;
+    }
+
+    .contact-form {
+        gap: 1.1rem;
+    }
+
+    .footer-bottom {
+        margin-top: 1.5rem;
     }
 }

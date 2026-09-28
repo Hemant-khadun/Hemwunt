@@ -271,6 +271,15 @@ const ScrollBeats = () => {
             }
             if (event.type === 'touchend') {
                 arm();
+                // A finger lifted mid-swipe reaches Lenis still moving, and it
+                // reads that as native touch scrolling taking over: it stops
+                // the running animation, which is the scene this swipe just
+                // started, and the settle carries the page back where it was.
+                // Keep the lift from it, and end the touch as it would have.
+                if (gliding === 'scene') {
+                    lenis.isTouching = false;
+                    return false;
+                }
                 return true;
             }
             if (!touch) {
@@ -307,13 +316,32 @@ const ScrollBeats = () => {
         };
 
         // --- Settling ---------------------------------------------------------
+        // A phone's fling runs off the main thread, and this page hears of it
+        // a frame or more late. On a busy frame (a screenshot decoding as it
+        // comes into view) its scroll events can fall silent for longer than
+        // SETTLE_DELAY while it is still going, and a settle started then
+        // fought it: the glide set off from where the page had been, a few
+        // hundred pixels back, and the two shook the page between them until
+        // the fling died. So the page has stopped only once it has also held
+        // still across two frames; if it has not, its scroll events arm the
+        // next try.
+        let settleCheck = 0;
         const settle = () => {
             if (gliding || pressed || lenis.isTouching) return;
-            const y = window.scrollY;
-            const to = settleTarget(settleBeats(), y, origin, heading);
-            origin = to ?? y;
-            if (to === null || Math.abs(to - y) < 1) return;
-            glide(to, 'settle');
+            const from = window.scrollY;
+            cancelAnimationFrame(settleCheck);
+            settleCheck = requestAnimationFrame(() => {
+                settleCheck = requestAnimationFrame(() => {
+                    settleCheck = 0;
+                    if (gliding || pressed || lenis.isTouching) return;
+                    const y = window.scrollY;
+                    if (y !== from) return;
+                    const to = settleTarget(settleBeats(), y, origin, heading);
+                    origin = to ?? y;
+                    if (to === null || Math.abs(to - y) < 1) return;
+                    glide(to, 'settle');
+                });
+            });
         };
 
         function arm() {
@@ -357,6 +385,7 @@ const ScrollBeats = () => {
             window.removeEventListener('pointerup', onPointerUp);
             offScroll();
             window.clearTimeout(settleTimer);
+            cancelAnimationFrame(settleCheck);
             // An unmount mid-settle never reaches onComplete; without this the
             // whale would ignore real scrolling for the rest of the session.
             release();

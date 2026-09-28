@@ -9,6 +9,7 @@ import {
     LinearFilter,
     ShaderMaterial,
     Uniform,
+    Vector2,
     WebGLRenderTarget,
 } from 'three';
 import type { DepthPackingStrategies, IUniform, Texture, WebGLRenderer } from 'three';
@@ -48,8 +49,9 @@ import { frameBudget } from '../../animations/frameBudget';
  * untouched), the cloud covers what is behind it (alpha raised).
  *
  * The march runs at HALF resolution into its own target (both halves are
- * soft, so nothing is lost but three quarters of the cost) and is composited
- * over the frame at full resolution. Only while the sea is in play.
+ * soft, so nothing is lost but three quarters of the cost), smoothed there
+ * (see smoothFragment), and composited over the frame at full resolution.
+ * Only while the sea is in play.
  */
 
 /** Steps per ray, and the fewer taken while the frame budget is blown. The
@@ -189,6 +191,57 @@ void main() {
 }
 `;
 
+/**
+ * Smooths the march before it is laid over the frame.
+ *
+ * The step jitter trades the steps' bands for per-pixel grain, and on its
+ * own that grain is a fixed lattice: the jitter never moves, and at half
+ * resolution each cell of it is a block of screen pixels. On a phone (fewer
+ * steps, so every pixel's estimate swings further, on a screen held close)
+ * it read as a screen door over the shafts and the cloud, and the volume's
+ * cut-off at the surface as a staircase. Interleaved gradient noise spreads
+ * the whole jitter range over any 3x3 block, so the mean of that block is
+ * every offset taken at once: the grain cancels, and the cut-off becomes a
+ * ramp. Taps across a depth edge (the whale's silhouette) are left out, so
+ * light from the open water does not bleed onto its body.
+ */
+const smoothFragment = /* glsl */ `
+#include <packing>
+uniform sampler2D uVolume;
+uniform sampler2D depthBuffer;
+uniform vec2 uTexel;
+uniform float cameraNear;
+uniform float cameraFar;
+uniform float uMaxDist;
+varying vec2 vUv;
+
+// How far the march ran at uv, roughly: the depth it stopped at.
+float reach(vec2 uv) {
+#if DEPTH_PACKING == 3201
+    float depth = unpackRGBAToDepth(texture2D(depthBuffer, uv));
+#else
+    float depth = texture2D(depthBuffer, uv).r;
+#endif
+    return depth >= 0.99999 ? uMaxDist : min(-perspectiveDepthToViewZ(depth, cameraNear, cameraFar), uMaxDist);
+}
+
+void main() {
+    float r0 = reach(vUv);
+    float edge = 0.1 * r0 + 0.3;
+    vec4 sum = vec4(0.0);
+    float weight = 0.0;
+    for (int y = -1; y <= 1; y++) {
+        for (int x = -1; x <= 1; x++) {
+            vec2 uv = vUv + vec2(float(x), float(y)) * uTexel;
+            float w = max(1.0 - abs(reach(uv) - r0) / edge, 0.0);
+            sum += texture2D(uVolume, uv) * w;
+            weight += w;
+        }
+    }
+    gl_FragColor = sum / weight;
+}
+`;
+
 /** Lays the march over the frame: the cloud covers, the light adds. */
 const compositeFragment = /* glsl */ `
 uniform sampler2D uVolume;
@@ -205,8 +258,11 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
 
 class UnderwaterVolumeEffect extends Effect {
     readonly march: ShaderMaterial;
+    private readonly smooth: ShaderMaterial;
     private readonly target: WebGLRenderTarget;
+    private readonly smoothed: WebGLRenderTarget;
     private readonly pass: ShaderPass;
+    private readonly smoothPass: ShaderPass;
 
     constructor() {
         const u = oceanUniforms;
@@ -231,27 +287,33 @@ class UnderwaterVolumeEffect extends Effect {
             uCausticTex: u.uCausticTex,
             uNoise3D: u.uNoise3D,
         };
-        const target = new WebGLRenderTarget(1, 1, {
-            type: HalfFloatType,
-            minFilter: LinearFilter,
-            magFilter: LinearFilter,
-            depthBuffer: false,
-            stencilBuffer: false,
-        });
-        target.texture.generateMipmaps = false;
+        const volumeTarget = () => {
+            const t = new WebGLRenderTarget(1, 1, {
+                type: HalfFloatType,
+                minFilter: LinearFilter,
+                magFilter: LinearFilter,
+                depthBuffer: false,
+                stencilBuffer: false,
+            });
+            t.texture.generateMipmaps = false;
+            return t;
+        };
+        const target = volumeTarget();
+        const smoothed = volumeTarget();
 
         super('UnderwaterVolume', compositeFragment, {
             // Asked for so the pass hands this effect the depth texture;
-            // it is read by the march, not by the composite.
+            // it is read by the march and the smoothing, not the composite.
             attributes: EffectAttribute.DEPTH,
             blendFunction: BlendFunction.SRC,
             uniforms: new Map<string, Uniform>([
-                ['uVolume', new Uniform(target.texture)],
+                ['uVolume', new Uniform(smoothed.texture)],
                 ['uOn', new Uniform(0)],
             ]),
         });
 
         this.target = target;
+        this.smoothed = smoothed;
         this.march = new ShaderMaterial({
             vertexShader: marchVertex,
             fragmentShader: marchFragment,
@@ -274,18 +336,42 @@ class UnderwaterVolumeEffect extends Effect {
             depthWrite: false,
         });
         this.pass = new ShaderPass(this.march);
+        // Reads the depth the same way the march does, from the same uniforms.
+        const m = this.march.uniforms;
+        this.smooth = new ShaderMaterial({
+            vertexShader: marchVertex,
+            fragmentShader: smoothFragment,
+            defines: { DEPTH_PACKING: BasicDepthPacking },
+            uniforms: {
+                uVolume: { value: target.texture },
+                uTexel: { value: new Vector2(1, 1) },
+                depthBuffer: m.depthBuffer,
+                cameraNear: m.cameraNear,
+                cameraFar: m.cameraFar,
+                uMaxDist: m.uMaxDist,
+            },
+            depthTest: false,
+            depthWrite: false,
+        });
+        this.smoothPass = new ShaderPass(this.smooth);
     }
 
     override setDepthTexture(depthTexture: Texture, depthPacking: DepthPackingStrategies = BasicDepthPacking) {
         this.march.uniforms.depthBuffer.value = depthTexture;
-        if (this.march.defines.DEPTH_PACKING !== depthPacking) {
-            this.march.defines.DEPTH_PACKING = depthPacking;
-            this.march.needsUpdate = true;
+        for (const material of [this.march, this.smooth]) {
+            if (material.defines.DEPTH_PACKING !== depthPacking) {
+                material.defines.DEPTH_PACKING = depthPacking;
+                material.needsUpdate = true;
+            }
         }
     }
 
     override setSize(width: number, height: number) {
-        this.target.setSize(Math.max(1, Math.ceil(width * SCALE)), Math.max(1, Math.ceil(height * SCALE)));
+        const w = Math.max(1, Math.ceil(width * SCALE));
+        const h = Math.max(1, Math.ceil(height * SCALE));
+        this.target.setSize(w, h);
+        this.smoothed.setSize(w, h);
+        this.smooth.uniforms.uTexel.value.set(1 / w, 1 / h);
     }
 
     /** The clip planes of the camera being rendered, for reading depth. */
@@ -297,14 +383,19 @@ class UnderwaterVolumeEffect extends Effect {
     override update(renderer: WebGLRenderer) {
         const on = this.march.uniforms.uShafts.value + this.march.uniforms.uCloud.value > 0;
         (this.uniforms.get('uOn') as Uniform).value = on ? 1 : 0;
-        if (on) this.pass.render(renderer, null, this.target);
+        if (!on) return;
+        this.pass.render(renderer, null, this.target);
+        this.smoothPass.render(renderer, null, this.smoothed);
     }
 
     override dispose() {
         super.dispose();
         this.target.dispose();
+        this.smoothed.dispose();
         this.march.dispose();
+        this.smooth.dispose();
         this.pass.dispose();
+        this.smoothPass.dispose();
     }
 }
 
