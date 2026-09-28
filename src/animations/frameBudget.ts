@@ -35,7 +35,8 @@ import gsap from 'gsap';
  * not itself cost a slice of it.
  */
 export const frameBudget = {
-    /** Median frame time over the last second, milliseconds. */
+    /** Frame time over the last second, milliseconds: the mean, less the
+     *  slowest few frames (see `typical`). */
     meanMs: 16.7,
     /** True while the page should shed expendable effects. */
     degraded: false,
@@ -46,17 +47,21 @@ export const frameBudget = {
 /** The resolution rungs, as multipliers on the device's pixel ratio. */
 const RESOLUTION_STEPS = [1, 0.85, 0.72, 0.6];
 
-/** Over this for OVER_HOLD_MS and the page steps down. ~45 fps. */
-const OVER_MS = 22;
+/** Over this for OVER_HOLD_MS and the page steps down. ~53 fps on average,
+ *  which on a 60 Hz screen is about one frame in six shown twice: a visible
+ *  stutter in anything that moves steadily, like the sea. */
+const OVER_MS = 19;
 /** Under this for UNDER_HOLD_MS and it steps back up. ~57 fps. */
 const UNDER_MS = 17.5;
+/** The slowest share of each window's frames left out of its average. */
+const TRIM = 0.05;
 const OVER_HOLD_MS = 1500;
 const UNDER_HOLD_MS = 5000;
 /** After any change the ladder waits for the frame time to SETTLE before it
  *  judges the change or makes another. A new resolution reallocates every
  *  render target, and on a GPU short of memory that is not one long frame
  *  but seconds of them (measured: 150-200 ms frames for ~7 s on a GTX 970
- *  at 4K). Settled means two consecutive half-second medians agree within
+ *  at 4K). Settled means two consecutive half-second averages agree within
  *  SETTLE_TOLERANCE, no sooner than SETTLE_MIN_MS and no later than
  *  SETTLE_MAX_MS. Judging inside the stall blamed the step for the stall. */
 const SETTLE_MIN_MS = 1500;
@@ -92,12 +97,18 @@ const blockedUntil: Record<Knob, number> = { resolution: 0, shed: 0 };
 const failures: Record<Knob, number> = { resolution: 0, shed: 0 };
 
 // --- Frame times ---------------------------------------------------------------
-// The last few seconds of frames, in a ring, judged by their MEDIAN over a
-// window of wall-clock time. A per-frame moving average (what this used to
-// be) catches up in frames, not seconds: at 10 fps it lags by seconds, so a
-// step was judged on frames from before it was taken, and one shader-compile
-// stall dragged it for a second after. A median over the last second is
-// current at any frame rate and shrugs off the odd hitch.
+// The last few seconds of frames, in a ring, judged over a window of
+// wall-clock time. A per-frame moving average (what this first was) catches
+// up in frames, not seconds: at 10 fps it lags by seconds, so a step was
+// judged on frames from before it was taken.
+//
+// Judged by their MEAN, less the slowest TRIM of them: the odd hitch (a
+// shader compile, a garbage collection) is left out, a steady share of late
+// frames is not. It was the median, which cannot see dropped frames: on a
+// 60 Hz screen every frame is shown for 16.7 ms or 33.3 ms, nothing between,
+// so the median read 16.7 until HALF of them were late. A phone drawing the
+// sea one frame in three late stuttered visibly while the ladder saw 60 fps
+// and never stepped down.
 const RING = 512;
 const ringT = new Float64Array(RING);
 const ringDt = new Float64Array(RING);
@@ -112,8 +123,9 @@ function record(t: number, dt: number) {
     ringCount = Math.min(ringCount + 1, RING);
 }
 
-/** Median frame time of the frames at times in [from, to], or NaN if none. */
-function median(from: number, to: number): number {
+/** Typical frame time of the frames at times in [from, to] (the mean, less
+ *  the slowest TRIM of them), or NaN if none. */
+function typical(from: number, to: number): number {
     let n = 0;
     for (let k = 0; k < ringCount; k++) {
         const i = (ringHead - 1 - k + RING) % RING;
@@ -123,7 +135,10 @@ function median(from: number, to: number): number {
     }
     if (n === 0) return NaN;
     const sorted = scratch.subarray(0, n).sort();
-    return n % 2 ? sorted[(n - 1) / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2;
+    const keep = n - Math.floor(n * TRIM);
+    let sum = 0;
+    for (let i = 0; i < keep; i++) sum += sorted[i];
+    return sum / keep;
 }
 
 /** The ladder's decisions, for `window.__budget.log` in development. */
@@ -174,8 +189,8 @@ function settled(now: number): boolean {
     const age = now - settlingSince;
     if (age >= SETTLE_MAX_MS) return true;
     if (age < SETTLE_MIN_MS) return false;
-    const a = median(now - 1000, now - 500);
-    const b = median(now - 500, now);
+    const a = typical(now - 1000, now - 500);
+    const b = typical(now - 500, now);
     if (Number.isNaN(a) || Number.isNaN(b)) return false;
     // Taking work away cannot make the steady state slower. A step down that
     // is followed by SLOWER frames is still in its stall, however steady the
@@ -246,10 +261,10 @@ function install() {
 
     gsap.ticker.add((_time, deltaTime) => {
         const now = performance.now();
-        // A backgrounded tab returns with one enormous delta: clamped, and a
-        // median does not care about one frame anyway.
+        // A backgrounded tab returns with one enormous delta: clamped, and
+        // the trim leaves one frame out anyway.
         record(now, Math.min(deltaTime, 250));
-        const recent = median(now - 1000, now);
+        const recent = typical(now - 1000, now);
         if (!Number.isNaN(recent)) frameBudget.meanMs = recent;
 
         if (import.meta.env.DEV) {

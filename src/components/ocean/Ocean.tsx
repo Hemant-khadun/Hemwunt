@@ -55,6 +55,7 @@ import { preludeSignal } from '../../animations/preludeSignal';
 import { depthSignal } from '../../animations/depthSignal';
 import { prefersReducedMotion } from '../../animations/motionPreference';
 import { frameBudget, holdBudget } from '../../animations/frameBudget';
+import { createFrameClock } from '../../animations/frameClock';
 import whaleModelUrl from '../../assets/models/humpback_whale.glb?url';
 
 /**
@@ -398,6 +399,10 @@ const Ocean = () => {
 
     // --- Frame ---------------------------------------------------------------
     const clock = useRef({ acc: 0, frame: 0, fadeIn: 0 });
+    // The sea runs on the display's cadence, not R3F's jittery delta: its
+    // waves are a pure function of time and its ripples step at a fixed
+    // rate, so every frame's error shows (see animations/frameClock.ts).
+    const frameClock = useMemo(() => createFrameClock(), []);
     const slope = useMemo<[number, number]>(() => [0, 0], []);
     const floating = useRef(false);
     const prevRel = useMemo(() => new Float32Array(MAX_SPHERES * 4), []);
@@ -420,8 +425,9 @@ const Ocean = () => {
     }, []);
 
     useFrame((state, delta) => {
+        const dt = frameClock(delta);
         const vh = window.scrollY / viewportHeight();
-        updateWater(vh, delta, prefersReducedMotion() ? 0.35 : 1);
+        updateWater(vh, dt, prefersReducedMotion() ? 0.35 : 1);
         // The only writer: the camera director and the god rays take over as
         // the waterline leaves the frame.
         preludeSignal.progress = waterSignal.air;
@@ -432,7 +438,7 @@ const Ocean = () => {
         u.uDomeRadius.value = waterSignal.domeRadius;
         // The sky and sea arrive with their texture a moment after the page;
         // fade them in over the water backdrop instead of cutting.
-        clock.current.fadeIn = Math.min(1, clock.current.fadeIn + Math.min(delta, 0.05) / 0.8);
+        clock.current.fadeIn = Math.min(1, clock.current.fadeIn + Math.min(dt, 0.05) / 0.8);
         const arrive = clock.current.fadeIn * clock.current.fadeIn * (3 - 2 * clock.current.fadeIn);
         u.uPresence.value = waterSignal.presence * arrive;
         u.uAir.value = waterSignal.air;
@@ -533,18 +539,20 @@ const Ocean = () => {
             bodyPrimed.current = true;
         }
 
-        // 3. Physics at a fixed rate.
+        // 3. Physics at a fixed rate. At 60 Hz the frame clock hands over
+        // exactly one step's time per frame, so every frame takes exactly
+        // one step; the tolerance keeps rounding from dropping one.
         const c = clock.current;
-        c.acc = Math.min(c.acc + Math.min(delta, 0.05), 3 / SIM_HZ);
-        while (c.acc >= 1 / SIM_HZ) {
+        c.acc = Math.min(c.acc + Math.min(dt, 0.05), 3 / SIM_HZ);
+        while (c.acc >= 1 / SIM_HZ - 1e-6) {
             sim.step();
-            c.acc -= 1 / SIM_HZ;
+            c.acc = Math.max(0, c.acc - 1 / SIM_HZ);
         }
         sim.updateNormals();
 
         // 4. White water: where the body cuts the surface (measured against
         // the actual waves there, not the mean level), and the splashes.
-        const dtFoam = Math.min(delta, 0.05);
+        const dtFoam = Math.min(dt, 0.05);
         for (let i = 0; i < n; i++) {
             const x = whaleBody.world[i * 4];
             const z = whaleBody.world[i * 4 + 2];
