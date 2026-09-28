@@ -4,7 +4,7 @@
 
 A developer portfolio told as a dive. You land on the surface of the sea, then scroll, and go under.
 
-**Live:** [hemant-khadun.github.io/hemwunt](https://hemant-khadun.github.io/hemwunt/)
+**Live:** [hemant-khadun.github.io/hemwunt](https://hemant-khadun.github.io/Hemwunt/)
 
 ## What's down there
 
