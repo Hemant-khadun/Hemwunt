@@ -8,6 +8,12 @@ import { preludeSignal } from '../../animations/preludeSignal';
 import { waterSignal } from '../../animations/waterSignal';
 import { oceanUniforms } from '../ocean/oceanUniforms';
 import { oceanCommon, screenRay } from '../ocean/oceanShaders';
+import { IS_MOBILE } from '../../utils/device';
+
+/** A phone's share of the rays: behind the projects' words on a small screen
+ *  they read as smoke over the type, and the owner asked for them massively
+ *  reduced there (as the live shafts are, see underwaterVolume). */
+const PHONE_RAYS = 0.25;
 
 /** Ray colour at the surface and in the deep. Red is absorbed first, so the
  *  shafts cool as they descend rather than simply dimming. Module scope: the
@@ -274,7 +280,8 @@ const LightRays = ({
         // back over as the surface fades out of reach overhead.
         const live = waterSignal.active ? waterSignal.presence : 0;
         u.uOpacity.value =
-            intensity * eased * ocean.rays * reveal * (1 - 0.55 * preludeSignal.progress) * (1 - live);
+            intensity * eased * ocean.rays * reveal * (1 - 0.55 * preludeSignal.progress) * (1 - live) *
+            (IS_MOBILE ? PHONE_RAYS : 1);
     });
 
     // Culling off: the vertex shader ignores the camera and writes clip space

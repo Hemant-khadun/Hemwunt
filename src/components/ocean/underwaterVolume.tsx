@@ -61,10 +61,19 @@ const STEPS_DEGRADED = IS_MOBILE ? 6 : 10;
 /** The march's resolution, relative to the frame. */
 const SCALE = 0.5;
 
+/** A phone's share of the shafts and of the cloud. On its small screen the
+ *  hero's words sit right in them, and their smoke washed the type out: the
+ *  owner asked for it removed or massively reduced there. The cloud is the
+ *  smoke itself (the tail breaking the surface churns it all through the
+ *  opening shot), and even at 40% it billowed behind the words, so a phone
+ *  has none; the shafts are a hint of light in the water. */
+const PHONE_SHAFTS = 0.15;
+const PHONE_CLOUD = 0;
+
 /** Brightness of the shafts. */
-const SHAFTS = 0.0027;
+const SHAFTS = 0.0027 * (IS_MOBILE ? PHONE_SHAFTS : 1);
 /** How thick the bubble cloud is, and how deep it hangs (world units). */
-const CLOUD_DENSITY = 0.7;
+const CLOUD_DENSITY = 0.7 * (IS_MOBILE ? PHONE_CLOUD : 1);
 const CLOUD_DEPTH = 2.1;
 
 const marchVertex = /* glsl */ `
