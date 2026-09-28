@@ -87,6 +87,20 @@ const JUMP = 0.5;
  */
 const HOLD_MARGIN = 0.04;
 
+/**
+ * How far ahead (seconds, at the scroll's current speed) the fixed hold looks
+ * for its end.
+ *
+ * The page hears of a phone's scroll late, and later the harder it is flung:
+ * a busy frame or two, while the fling covers 50 px each. Let go late, the
+ * fixed stage stood still while the page flew on past the end of the pin and
+ * then jumped up to meet it (160 px, emulated). Letting go early costs
+ * nothing, since the sticky stage it hands back to is pinned in the same
+ * place; taking hold late costs nothing either. So the hold is taken where
+ * the scroll IS, and let go where it will be this far ahead.
+ */
+const HOLD_LEAD = 0.15;
+
 type RevealComponent = ForwardRefExoticComponent<RevealProps & RefAttributes<RevealHandle>>;
 
 const REVEALS: Record<RevealKind, RevealComponent> = {
@@ -181,19 +195,29 @@ const ProjectChapter = ({ project, index, total }: Props) => {
             shown = t;
             render(t);
         };
-        // Touch: the stage held by `position: fixed` (see HOLD_MARGIN). Keyed
-        // to the scroll itself, not the eased `shown`: it is where the stage
-        // IS, not how far its reveal has got.
+        // Touch: the stage held by `position: fixed` (see HOLD_MARGIN and
+        // HOLD_LEAD). Keyed to the scroll itself, not the eased `shown`: it is
+        // where the stage IS, not how far its reveal has got.
         let held = false;
-        const hold = (t: number) => {
-            const next = IS_TOUCH && t > 1 + HOLD_MARGIN && t < CHAPTER_VH - HOLD_MARGIN;
+        const pinned = (t: number) => t > 1 + HOLD_MARGIN && t < CHAPTER_VH - HOLD_MARGIN;
+        const hold = (t: number, ahead = t) => {
+            const next = IS_TOUCH && pinned(t) && pinned(ahead);
             if (next === held) return;
             held = next;
             el.classList.toggle('project--held', next);
         };
+        // The scroll's speed, in viewport heights a second, from the last two
+        // times the page heard of it.
+        let heardT = Number.NaN;
+        let heardAt = 0;
+        let speed = 0;
         const aim = (t: number) => {
+            const now = performance.now();
+            if (!Number.isNaN(heardT)) speed = (t - heardT) / (Math.max(now - heardAt, 8) / 1000);
+            heardT = t;
+            heardAt = now;
             target = t;
-            hold(t);
+            hold(t, t + speed * HOLD_LEAD);
             if (!IS_TOUCH || Number.isNaN(shown) || Math.abs(t - shown) > JUMP) show(t);
         };
         // Touch: ease toward the scroll (see FOLLOW_S).
