@@ -1185,6 +1185,66 @@ html {
     grid-template-columns: minmax(17rem, 28vw) auto;
 }
 
+/* The water column behind everything (src/utils/MarineSnow.tsx): gradient
+   stops crossfaded by opacity, and sheets of marine snow that fall and sway
+   on the compositor. Nothing in it is painted after the first frame. */
+.water-column {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    /* As tall as the WebGL canvas in front of it, so the two never disagree
+       while the mobile address bar moves. */
+    height: 100vh;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.water-column__stop {
+    will-change: opacity;
+}
+
+.water-column__sway {
+    animation: water-sway 16s ease-in-out infinite alternate;
+}
+
+/* Two screens tall, the pattern twice: falls one screen, and loops. */
+.water-column__sheet {
+    position: absolute;
+    top: 0;
+    left: -16px;
+    width: calc(100% + 32px);
+    height: 200%;
+    animation: water-snow 60s linear infinite;
+    will-change: transform;
+}
+
+@keyframes water-snow {
+    from {
+        transform: translate3d(0, -50%, 0);
+    }
+    to {
+        transform: translate3d(0, 0, 0);
+    }
+}
+
+@keyframes water-sway {
+    from {
+        transform: translate3d(-7.5px, 0, 0);
+    }
+    to {
+        transform: translate3d(7.5px, 0, 0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .water-column__sway,
+    .water-column__sheet {
+        animation: none;
+    }
+}
+
 /* The `?perf` diagnostic's "no page layers" (src/utils/perf.ts): the page
    below the first screen gone, and nothing promoted to a layer of its own. */
 html.perf-nodom #portfolio,

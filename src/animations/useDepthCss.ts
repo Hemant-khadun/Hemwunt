@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import gsap from 'gsap';
 import { depthSignal } from './depthSignal';
+import { createOceanSample, sampleOcean } from './oceanPalette';
 
 /**
  * Bridges the depth signal into CSS custom properties on :root.
@@ -36,14 +37,19 @@ export function useDepthCss(): void {
         let lastZone = -1;
         let lastNear = '';
         let lastFar = '';
+        // The colours are sampled at the QUANTIZED depth. Read off the live
+        // signal they changed on nearly every frame of a scroll, and each
+        // write restyled the whole document all the same.
+        const ocean = createOceanSample();
 
         const write = () => {
-            const { ocean, depth, zone } = depthSignal;
+            const { depth, zone } = depthSignal;
 
             const q = Math.round(depth * DEPTH_STEPS) / DEPTH_STEPS;
             if (q !== lastDepth) {
                 lastDepth = q;
                 root.style.setProperty('--depth', String(q));
+                sampleOcean(q, ocean);
             }
 
             if (zone !== lastZone) {
