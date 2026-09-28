@@ -1185,6 +1185,29 @@ html {
     grid-template-columns: minmax(17rem, 28vw) auto;
 }
 
+/* The `?perf` diagnostic's "no page layers" (src/utils/perf.ts): the page
+   below the first screen gone, and nothing promoted to a layer of its own. */
+html.perf-nodom #portfolio,
+html.perf-nodom #statement,
+html.perf-nodom .footer-container {
+    display: none;
+}
+
+html.perf-nodom * {
+    will-change: auto !important;
+}
+
+/* Touch screens, while the stage holds: fixed to the screen instead of stuck,
+   in exactly the same place (ProjectChapter's HOLD_MARGIN says why). The
+   section keeps its height, so nothing below moves; the clip is the one the
+   section gave it, which a fixed box escapes. */
+.project--held .project__stage {
+    position: fixed;
+    left: 0;
+    width: 100%;
+    overflow-x: clip;
+}
+
 .project--frame-right .project__visual {
     order: 2;
 }

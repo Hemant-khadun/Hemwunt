@@ -3,6 +3,10 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { ThreeTunnel } from '../components/tunel';
 import { enableResolutionScaling, frameBudget, holdBudget } from '../animations/frameBudget';
 import { MAX_DPR } from './device';
+import { perfOff } from './perf';
+
+/** `?perf` switch (utils/perf.ts): a ninth of the pixels. */
+const PERF_DPR = perfOff('dpr') ? MAX_DPR / 3 : 0;
 
 /** Never below this pixel ratio, however far the ladder steps down. */
 const MIN_DPR = 0.5;
@@ -24,7 +28,7 @@ function AdaptiveResolution() {
     }, []);
 
     useFrame((state) => {
-        const want = Math.max(MIN_DPR, Math.round(MAX_DPR * frameBudget.resolution * 100) / 100);
+        const want = PERF_DPR || Math.max(MIN_DPR, Math.round(MAX_DPR * frameBudget.resolution * 100) / 100);
         if (Math.abs(state.viewport.dpr - want) > 0.005) state.setDpr(want);
     });
 

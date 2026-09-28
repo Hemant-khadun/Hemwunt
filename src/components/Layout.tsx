@@ -14,6 +14,10 @@ import SceneBoundary from './SceneBoundary';
 import { CAN_HOVER, webgl } from '../utils/device';
 import { preloadSceneAssets } from '../utils/sceneAssets';
 import { expectScene, loaderTask, loaderWaitsFor, sceneAbandoned, sealLoader } from '../utils/loader';
+import { PERF_ON, perfOff } from '../utils/perf';
+
+// The `?perf` panel (utils/perf.ts): its own chunk, never fetched otherwise.
+const PerfProbe = PERF_ON ? lazy(() => import('./PerfProbe')) : null;
 
 // The WebGL scene is a chunk of its own (see WebGLStage), started here at
 // load rather than at first render, with its big assets beside it, so it
@@ -23,7 +27,7 @@ import { expectScene, loaderTask, loaderWaitsFor, sceneAbandoned, sealLoader } f
 // The loader (index.html) holds the page back until its first screen is in:
 // the scene's chunk and assets, the scene mounted and drawn, and the page's
 // own words in their typeface. Weights are roughly MB (see utils/loader.ts).
-const stage = webgl.ok ? import('./WebGLStage') : null;
+const stage = webgl.ok && !perfOff('webgl') ? import('./WebGLStage') : null;
 if (stage) {
     loaderWaitsFor('sea', 0.6, stage);
     preloadSceneAssets();
@@ -69,7 +73,7 @@ const Layout = () => {
 
             {/* Behind the WebGL canvas. Paints the water gradient and the
                 marine snow drifting down through it. */}
-            <MarineSnow />
+            {!perfOff('snow') && <MarineSnow />}
 
             <div id="home" className="section">
                 <Header />
@@ -101,6 +105,12 @@ const Layout = () => {
             {/* A trail for a mouse to lead. On touch there is nothing to
                 follow, and its dots sat stranded in the top-left corner. */}
             {CAN_HOVER && <Cursor />}
+
+            {PerfProbe && (
+                <Suspense fallback={null}>
+                    <PerfProbe />
+                </Suspense>
+            )}
         </div>
     );
 };

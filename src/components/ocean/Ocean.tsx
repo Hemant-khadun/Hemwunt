@@ -56,6 +56,10 @@ import { depthSignal } from '../../animations/depthSignal';
 import { prefersReducedMotion } from '../../animations/motionPreference';
 import { frameBudget, holdBudget } from '../../animations/frameBudget';
 import { createFrameClock } from '../../animations/frameClock';
+import { perfOff } from '../../utils/perf';
+
+/** `?perf` switch (utils/perf.ts): the surface drawn, the ripples not run. */
+const SIM_OFF = perfOff('sim');
 import whaleModelUrl from '../../assets/models/humpback_whale.glb?url';
 
 /**
@@ -476,7 +480,7 @@ const Ocean = () => {
             (2 * Math.tan(MathUtils.degToRad(cam.fov) / 2)) / Math.max(1, state.size.height);
 
         if (group.current) group.current.visible = waterSignal.active;
-        if (!waterSignal.active) {
+        if (!waterSignal.active || SIM_OFF) {
             u.uCausticStrength.value = 0;
             u.uWhaleHaze.value = 0;
             u.uAirLight.value = 0;

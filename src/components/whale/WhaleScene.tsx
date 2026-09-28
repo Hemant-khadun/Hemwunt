@@ -10,6 +10,8 @@ import SurfacePrelude from './SurfacePrelude';
 import { depthSignal } from '../../animations/depthSignal';
 import { OCEAN } from '../../animations/oceanPalette';
 import { CONTACT_BEAM_EASE, contactBeamTarget } from '../../animations/contactBeam';
+import { perfOff } from '../../utils/perf';
+import { sceneMounted } from '../../utils/loader';
 
 /**
  * The procedural sky-and-sea opening (SOUNDING_PLAN.md §4.10) is superseded,
@@ -138,6 +140,11 @@ const WhaleScene = ({ animator, revealRef, scrollRef, worldPosRef }: WhaleSceneP
         }
     }, []);
 
+    // `?perf` without the sea: the loader must not wait for it.
+    useEffect(() => {
+        if (perfOff('sea')) sceneMounted('sea');
+    }, []);
+
     useFrame((state, delta) => {
         const target = MathUtils.lerp(1, FADE_FLOOR, depthSignal.depth);
         const k = 1 - Math.exp(-2.6 * Math.min(delta, 0.05));
@@ -254,16 +261,21 @@ const WhaleScene = ({ animator, revealRef, scrollRef, worldPosRef }: WhaleSceneP
 
             {/* The live sea: sky, surface, ripples, caustics, waterline. Its own
                 boundary so the sky texture never holds the whale back. */}
-            <Suspense fallback={null}>
-                <Ocean />
-            </Suspense>
-            <Suspense fallback={null}>
-                <WhaleWaterCoupling />
-            </Suspense>
-            {/* Spray off the body and the fine bubbles round broken water. */}
-            <Spray />
+            {!perfOff('sea') && (
+                <>
+                    <Suspense fallback={null}>
+                        <Ocean />
+                    </Suspense>
+                    <Suspense fallback={null}>
+                        <WhaleWaterCoupling />
+                    </Suspense>
+                    {/* Spray off the body and the fine bubbles round broken water. */}
+                    <Spray />
+                </>
+            )}
 
             <Center
+                visible={!perfOff('whale')}
                 onPointerOver={() => setHovered(true)}
                 onPointerOut={() => setHovered(false)}
                 onPointerDown={() => animator.triggerBurst()}>

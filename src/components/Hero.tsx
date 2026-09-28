@@ -6,6 +6,7 @@ import { Vector3 } from 'three';
 import type { EffectComposer as EffectComposerImpl } from 'postprocessing';
 import { ThreeTunnel } from './tunel';
 import { IS_MOBILE } from '../utils/device';
+import { perfOff } from '../utils/perf';
 import WhaleScene from './whale/WhaleScene';
 import WhaleShockwave from './whale/WhaleShockwave';
 import { UnderwaterVolume } from './ocean/underwaterVolume';
@@ -63,40 +64,46 @@ const Hero = () => {
                 worldPosRef={worldPosRef}
             />
             {/* No normal pass: neither N8AO nor Bloom needs one, and it is
-                off by default in this version of the library. */}
-            <EffectComposer ref={composerRef}>
-                {/* Ambient occlusion: the contact shadow in the whale's throat
-                    grooves and under its flippers. The most expensive pass in
-                    the chain, so a phone runs it at half resolution and with
-                    fewer samples (depth-aware upsampling keeps the edges);
-                    through water, grain and a small screen the two are hard to
-                    tell apart, and a phone keeps the effect rather than losing
-                    it. */}
-                <N8AO
-                    color="#0a1931"
-                    aoRadius={3}
-                    intensity={Math.PI * 1.5}
-                    halfRes={IS_MOBILE}
-                    depthAwareUpsampling
-                    quality={IS_MOBILE ? 'performance' : undefined}
-                />
-                {/* Light shafts and the bubble cloud: the water between the lens
-                    and the scene, so after AO and before the bloom that
-                    softens them. */}
-                <UnderwaterVolume />
-                <Bloom
-                    luminanceThreshold={0.4}
-                    luminanceSmoothing={0.9}
-                    height={300}
-                    intensity={0.8}
-                />
-                <WhaleShockwave positionRef={worldPosRef} revealRef={revealRef} />
-                {/* The water a wave leaves on the port: it bends everything
-                    behind the glass, and lies under the grade's vignette. */}
-                <LensDroplets />
-                {/* The over/under photograph's grade: last, so nothing blurs it. */}
-                <OceanGrade />
-            </EffectComposer>
+                off by default in this version of the library. The perfOff
+                switches are the `?perf` diagnostic's (utils/perf.ts). */}
+            {!perfOff('post') && (
+                <EffectComposer ref={composerRef} multisampling={perfOff('msaa') ? 0 : undefined}>
+                    {/* Ambient occlusion: the contact shadow in the whale's throat
+                        grooves and under its flippers. The most expensive pass in
+                        the chain, so a phone runs it at half resolution and with
+                        fewer samples (depth-aware upsampling keeps the edges);
+                        through water, grain and a small screen the two are hard to
+                        tell apart, and a phone keeps the effect rather than losing
+                        it. */}
+                    {!perfOff('ao') ? (
+                        <N8AO
+                            color="#0a1931"
+                            aoRadius={3}
+                            intensity={Math.PI * 1.5}
+                            halfRes={IS_MOBILE}
+                            depthAwareUpsampling
+                            quality={IS_MOBILE ? 'performance' : undefined}
+                        />
+                    ) : (
+                        <></>
+                    )}
+                    {/* Light shafts and the bubble cloud: the water between the lens
+                        and the scene, so after AO and before the bloom that
+                        softens them. */}
+                    {!perfOff('volume') ? <UnderwaterVolume /> : <></>}
+                    {!perfOff('bloom') ? (
+                        <Bloom luminanceThreshold={0.4} luminanceSmoothing={0.9} height={300} intensity={0.8} />
+                    ) : (
+                        <></>
+                    )}
+                    {!perfOff('fx') ? <WhaleShockwave positionRef={worldPosRef} revealRef={revealRef} /> : <></>}
+                    {/* The water a wave leaves on the port: it bends everything
+                        behind the glass, and lies under the grade's vignette. */}
+                    {!perfOff('fx') ? <LensDroplets /> : <></>}
+                    {/* The over/under photograph's grade: last, so nothing blurs it. */}
+                    {!perfOff('fx') ? <OceanGrade /> : <></>}
+                </EffectComposer>
+            )}
             <ComposerFollowsDpr composer={composerRef} />
         </ThreeTunnel.In>
     );

@@ -1,4 +1,5 @@
 import gsap from 'gsap';
+import { PERF_ON } from '../utils/perf';
 
 /**
  * Is the machine keeping up — and if not, what is the cheapest thing to give?
@@ -276,7 +277,9 @@ function install() {
             };
         }
 
-        if (now < holdUntil) return;
+        // Under the `?perf` diagnostic the page is measured as it is built:
+        // the ladder must not change it mid-measurement.
+        if (now < holdUntil || PERF_ON) return;
 
         if (settlingSince) {
             if (!settled(now)) return;

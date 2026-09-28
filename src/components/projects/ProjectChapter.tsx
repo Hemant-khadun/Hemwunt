@@ -73,6 +73,20 @@ const FOLLOW_S = 0.07;
  *  the page opening mid-way), not scrolling, and is not eased. */
 const JUMP = 0.5;
 
+/**
+ * On a touch screen the stage is FIXED while it holds, not sticky.
+ *
+ * iOS Safari keeps a sticky element in place by moving it back against the
+ * scroll on its compositor, and the two moves round to the screen's pixels
+ * separately: the pinned stage wobbled up and down by a pixel as the page
+ * scrolled under it, and the screenshot's fine type shimmered with it. A
+ * fixed element is attached to the screen and cannot. The switch is made
+ * this far (viewport heights) inside the stretch the sticky stage is pinned
+ * for, [1, CHAPTER_VH], where the two put it in exactly the same place, so
+ * it cannot be seen even though the page hears of the scroll a frame late.
+ */
+const HOLD_MARGIN = 0.04;
+
 type RevealComponent = ForwardRefExoticComponent<RevealProps & RefAttributes<RevealHandle>>;
 
 const REVEALS: Record<RevealKind, RevealComponent> = {
@@ -167,8 +181,19 @@ const ProjectChapter = ({ project, index, total }: Props) => {
             shown = t;
             render(t);
         };
+        // Touch: the stage held by `position: fixed` (see HOLD_MARGIN). Keyed
+        // to the scroll itself, not the eased `shown`: it is where the stage
+        // IS, not how far its reveal has got.
+        let held = false;
+        const hold = (t: number) => {
+            const next = IS_TOUCH && t > 1 + HOLD_MARGIN && t < CHAPTER_VH - HOLD_MARGIN;
+            if (next === held) return;
+            held = next;
+            el.classList.toggle('project--held', next);
+        };
         const aim = (t: number) => {
             target = t;
+            hold(t);
             if (!IS_TOUCH || Number.isNaN(shown) || Math.abs(t - shown) > JUMP) show(t);
         };
         // Touch: ease toward the scroll (see FOLLOW_S).
@@ -194,6 +219,7 @@ const ProjectChapter = ({ project, index, total }: Props) => {
                 if (depth.current) depth.current.textContent = formatDepth(ocean.metres, ocean.label);
                 last = -1;
                 target = at(self);
+                hold(target);
                 show(target);
                 setImgWidth(imageWidth(vis.clientWidth, project.width));
             },
@@ -202,6 +228,7 @@ const ProjectChapter = ({ project, index, total }: Props) => {
         return () => {
             trigger.kill();
             gsap.ticker.remove(follow);
+            el.classList.remove('project--held');
         };
     }, []);
 
