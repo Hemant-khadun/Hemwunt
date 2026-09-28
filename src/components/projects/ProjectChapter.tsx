@@ -9,6 +9,7 @@ import { depthFromScroll } from '../../animations/depthSignal';
 import { depthProgress } from '../../animations/story';
 import { createOceanSample, sampleOcean } from '../../animations/oceanPalette';
 import { parseLine, smooth, span, writeWords } from '../../animations/words';
+import { IS_TOUCH } from '../../utils/device';
 import WrittenLine from '../WrittenLine';
 import { cld } from './projects';
 import type { Project, RevealKind } from './projects';
@@ -52,6 +53,25 @@ const T = {
     /** The frame falls back as the next chapter rises over it. */
     recede: [2.0, 2.9],
 } as const;
+
+/**
+ * How closely a chapter follows the scroll on a touch screen, in seconds.
+ *
+ * A phone scrolls natively, off the main thread (at 120 Hz on a ProMotion
+ * iPhone), and the page hears where it has got to at most once a frame, and
+ * unevenly: 10 px one frame, 30 the next, and a resting finger's tremor back
+ * and forth. Scrubbed by that directly, the frame, the tiles and the words
+ * lurched and shook until the chapter had finished arriving. So there the
+ * chapter eases toward the scroll over this time constant: short enough to
+ * stay with the finger (a brisk swipe is ~70 px ahead of it), long enough to
+ * iron the sampling out. A desktop scrolls through Lenis, on the same frame
+ * the chapter draws, already smooth, and is followed exactly.
+ */
+const FOLLOW_S = 0.07;
+
+/** A move this large in one frame (viewport heights) is a jump (a menu link,
+ *  the page opening mid-way), not scrolling, and is not eased. */
+const JUMP = 0.5;
 
 type RevealComponent = ForwardRefExoticComponent<RevealProps & RefAttributes<RevealHandle>>;
 
@@ -140,11 +160,30 @@ const ProjectChapter = ({ project, index, total }: Props) => {
 
         const at = (self: ScrollTrigger) => (self.scroll() - self.start) / viewportHeight();
 
+        // Where the scroll is (`target`), and where the chapter is drawn.
+        let target = Number.NaN;
+        let shown = Number.NaN;
+        const show = (t: number) => {
+            shown = t;
+            render(t);
+        };
+        const aim = (t: number) => {
+            target = t;
+            if (!IS_TOUCH || Number.isNaN(shown) || Math.abs(t - shown) > JUMP) show(t);
+        };
+        // Touch: ease toward the scroll (see FOLLOW_S).
+        const follow = (_time: number, deltaMs: number) => {
+            if (Number.isNaN(target) || shown === target) return;
+            const next = shown + (target - shown) * (1 - Math.exp(-Math.min(deltaMs, 100) / 1000 / FOLLOW_S));
+            show(Math.abs(target - next) < 2e-4 ? target : next);
+        };
+        if (IS_TOUCH) gsap.ticker.add(follow);
+
         const trigger = ScrollTrigger.create({
             trigger: el,
             start: 'top bottom',
             end: 'bottom top',
-            onUpdate: (self) => render(at(self)),
+            onUpdate: (self) => aim(at(self)),
             onRefresh: (self) => {
                 // The plate reads the ocean at the scroll position where this
                 // chapter sits, with the same curve the light and the whale
@@ -154,12 +193,16 @@ const ProjectChapter = ({ project, index, total }: Props) => {
                 sampleOcean(d, ocean);
                 if (depth.current) depth.current.textContent = formatDepth(ocean.metres, ocean.label);
                 last = -1;
-                render(at(self));
+                target = at(self);
+                show(target);
                 setImgWidth(imageWidth(vis.clientWidth, project.width));
             },
         });
 
-        return () => trigger.kill();
+        return () => {
+            trigger.kill();
+            gsap.ticker.remove(follow);
+        };
     }, []);
 
     const number = String(index + 1).padStart(2, '0');
